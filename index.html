@@ -7,6 +7,7 @@
 <title>Velclaw · AI App Builder</title>
 <link rel="stylesheet" href="style.css">
 <link rel="stylesheet" href="platform.css">
+<link rel="stylesheet" href="ui-polish.css">
 </head>
 <body>
 <div class="app" id="app">
@@ -16,7 +17,7 @@
 <section class="panel" id="panel-files"><div class="editor-head"><button class="project-btn" id="openTreeBtn"><span class="folder-dot"></span><span id="projectLabel">Codebase</span><svg viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg></button><div class="editor-actions"><button class="tool-btn" id="searchBtn" title="Tìm trong file"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg></button><button class="tool-btn" id="wrapBtn" title="Word wrap"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 10h16M4 14h10a3 3 0 1 0 0-6M4 18h16"/></svg></button><button class="save-btn" id="saveBtn" disabled>Lưu</button></div></div><div class="breadcrumb"><span>eve-pages</span><span>/</span><span id="breadcrumbFile">Chưa chọn file</span></div><div class="tabs" id="editorTabs"></div><div class="editor-wrap" id="editorWrap"><div class="gutter" id="gutter" aria-hidden="true"></div><textarea id="codeArea" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" placeholder="Chọn file trong Codebase"></textarea><div class="editor-overlay" id="editorOverlay">Loading…</div></div><div class="statusbar"><span id="editorStatus">Ready</span><span id="cursorStatus">Ln 1, Col 1</span><span id="languageStatus">Plain Text</span><span>UTF-8</span></div></section>
 <section class="panel" id="panel-chat"><div class="section-head"><div><strong>Velclaw Agent</strong><span class="substatus" id="agentStatus">● checking</span></div><button class="tool-btn" id="clearChatBtn">Clear</button></div><div class="chat-messages" id="chatMessages"></div><div class="chat-input-bar"><textarea id="legacyChatInput" rows="1" placeholder="Ra lệnh cho agent…"></textarea><button class="send-btn" id="legacySendBtn" disabled aria-label="Gửi"><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button></div></section>
 <section class="panel" id="panel-dashboard"><div class="section-head"><div><strong>Project Dashboard</strong><span class="substatus" id="deployStatus">Checking…</span></div><button class="tool-btn" id="refreshBtn">Refresh</button></div><div class="dashboard" id="dashboardContent"></div></section>
-<section class="panel" id="panel-git"><div class="section-head"><div><strong>Source Control</strong><span class="substatus">GitHub workflow</span></div></div><div class="dashboard" id="gitContent"></div></section>
+<section class="panel" id="panel-git"><div class="section-head"><div><strong>Source Control</strong><span class="substatus">GitHub workflow</span></div></section><div class="dashboard" id="gitContent"></div></section>
 <section class="panel" id="panel-portal"><div class="section-head"><div><strong id="portalTitle">Velclaw</strong><span class="substatus" id="portalSubtitle">Developer workspace</span></div></div><div class="portal" id="portalContent"></div></section>
 </main>
 <div class="command-overlay" id="commandOverlay"><button class="menu-backdrop" id="commandBackdrop"></button><div class="command-box"><input id="commandInput" autofocus placeholder="Type a command or search…"><div id="commandList"></div></div></div>

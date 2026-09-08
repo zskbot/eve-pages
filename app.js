@@ -1,12 +1,11 @@
 // ---------------------------------------------------------------------------
-// Velclaw workspace — vanilla JS version.
-// Loads all content from data.json. Replace the TODO-marked sections with
-// real API calls when wiring this up to a backend.
+// Velclaw Workspace — standalone client
 // ---------------------------------------------------------------------------
 
 let DATA = null;
 let activePath = null;
 let dirty = false;
+let statusTimer = null;
 
 const ICON_DIR = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h5l2 2h9v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"/></svg>`;
 const ICON_DIR_OPEN = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h5l2 2h9v3H2V6a2 2 0 0 1 2-2Z"/><path d="M2 9h20l-2 11H4Z"/></svg>`;
@@ -20,38 +19,36 @@ const ICON_X = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strok
 
 init();
 
-async function init() {
-  // TODO: replace with a real endpoint, e.g. fetch("/api/workspace/data")
-  const res = await fetch("data.json");
-  DATA = await res.json();
+async function api(path, options = {}) {
+  const res = await fetch(path, { ...options, headers: { "content-type": "application/json", ...(options.headers || {}) } });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+  return data;
+}
 
+async function init() {
+  try {
+    DATA = await api("data.json");
+  } catch {
+    DATA = { fileTree: [], fileContents: {}, chat: { initialMessages: [] }, dashboard: { deployStatus: { label: "Unknown" }, tools: [], connections: [], models: [], logs: [] } };
+  }
   setupTabs();
   setupFilesPanel();
   setupChatPanel();
   setupDashboardPanel();
+  refreshWorkspaceStatus();
+  statusTimer = setInterval(refreshWorkspaceStatus, 30000);
 }
-
-// ---------------------------------------------------------------------------
-// Tabs
-// ---------------------------------------------------------------------------
 
 function setupTabs() {
   const navBtns = document.querySelectorAll(".nav-btn");
-  navBtns.forEach((btn) => {
-    btn.addEventListener("click", () => {
-      navBtns.forEach((b) => b.classList.remove("active"));
-      btn.classList.add("active");
-      document
-        .querySelectorAll(".panel")
-        .forEach((p) => p.classList.remove("active"));
-      document.getElementById(`panel-${btn.dataset.tab}`).classList.add("active");
-    });
-  });
+  navBtns.forEach((btn) => btn.addEventListener("click", () => {
+    navBtns.forEach((b) => b.classList.remove("active"));
+    btn.classList.add("active");
+    document.querySelectorAll(".panel").forEach((p) => p.classList.remove("active"));
+    document.getElementById(`panel-${btn.dataset.tab}`).classList.add("active");
+  }));
 }
-
-// ---------------------------------------------------------------------------
-// Files panel
-// ---------------------------------------------------------------------------
 
 function setupFilesPanel() {
   const drawer = document.getElementById("drawerOverlay");
@@ -59,44 +56,40 @@ function setupFilesPanel() {
   const saveBtn = document.getElementById("saveBtn");
   const fileTitle = document.getElementById("fileTitle");
 
-  document.getElementById("openDrawerBtn").addEventListener("click", () => {
-    drawer.classList.add("open");
-  });
-  document.getElementById("closeDrawerBtn").addEventListener("click", () => {
-    drawer.classList.remove("open");
-  });
-  document.getElementById("drawerBackdrop").addEventListener("click", () => {
-    drawer.classList.remove("open");
-  });
+  document.getElementById("openDrawerBtn").addEventListener("click", () => drawer.classList.add("open"));
+  document.getElementById("closeDrawerBtn").addEventListener("click", () => drawer.classList.remove("open"));
+  document.getElementById("drawerBackdrop").addEventListener("click", () => drawer.classList.remove("open"));
 
   codeArea.addEventListener("input", () => {
     dirty = true;
     saveBtn.disabled = false;
-    fileTitle.innerHTML = `${activePath || ""} <span class="dirty-dot">•</span>`;
+    fileTitle.innerHTML = `${escapeHtml(activePath || "")} <span class="dirty-dot">•</span>`;
   });
 
-  saveBtn.addEventListener("click", () => {
-    // TODO: POST the content to a real save endpoint, e.g.
-    // fetch("/api/workspace/file", { method: "POST", body: JSON.stringify({ path: activePath, content: codeArea.value }) })
-    dirty = false;
+  saveBtn.addEventListener("click", async () => {
+    if (!activePath) return;
     saveBtn.disabled = true;
-    fileTitle.textContent = activePath;
+    try {
+      await api("/api/workspace/file", { method: "POST", body: JSON.stringify({ path: activePath, content: codeArea.value }) });
+      dirty = false;
+      fileTitle.textContent = activePath;
+      appendLog(`Saved ${activePath}`);
+    } catch (e) {
+      dirty = true;
+      saveBtn.disabled = false;
+      appendLog(`Save failed: ${e.message}`, true);
+    }
   });
 
-  renderTree(DATA.fileTree, document.getElementById("fileTree"), 0);
-
-  // Select first file by default
-  const first = findFirstFile(DATA.fileTree);
+  renderTree(DATA.fileTree || [], document.getElementById("fileTree"), 0);
+  const first = findFirstFile(DATA.fileTree || []);
   if (first) selectFile(first);
 }
 
 function findFirstFile(nodes) {
   for (const n of nodes) {
     if (n.type === "file") return n.path;
-    if (n.children) {
-      const f = findFirstFile(n.children);
-      if (f) return f;
-    }
+    if (n.children) { const f = findFirstFile(n.children); if (f) return f; }
   }
   return null;
 }
@@ -112,163 +105,96 @@ function renderTree(nodes, container, depth) {
       const childUl = document.createElement("ul");
       renderTree(node.children || [], childUl, depth + 1);
       childUl.style.display = open ? "block" : "none";
-
-      function paint() {
-        btn.innerHTML = `${open ? ICON_CHEVRON_D : ICON_CHEVRON_R}${
-          open ? ICON_DIR_OPEN : ICON_DIR
-        }<span>${node.name}</span>`;
-      }
+      const paint = () => { btn.innerHTML = `${open ? ICON_CHEVRON_D : ICON_CHEVRON_R}${open ? ICON_DIR_OPEN : ICON_DIR}<span>${escapeHtml(node.name)}</span>`; };
       paint();
-
-      btn.addEventListener("click", () => {
-        open = !open;
-        childUl.style.display = open ? "block" : "none";
-        paint();
-      });
-
-      li.appendChild(btn);
-      li.appendChild(childUl);
+      btn.addEventListener("click", () => { open = !open; childUl.style.display = open ? "block" : "none"; paint(); });
+      li.appendChild(btn); li.appendChild(childUl);
     } else {
       const btn = document.createElement("button");
       btn.className = "tree-file-btn";
       btn.dataset.path = node.path;
       btn.style.paddingLeft = `${8 + depth * 14}px`;
-      btn.innerHTML = `${ICON_FILE}<span>${node.name}</span>`;
-      btn.addEventListener("click", () => {
-        selectFile(node.path);
-        document.getElementById("drawerOverlay").classList.remove("open");
-      });
+      btn.innerHTML = `${ICON_FILE}<span>${escapeHtml(node.name)}</span>`;
+      btn.addEventListener("click", () => { selectFile(node.path); document.getElementById("drawerOverlay").classList.remove("open"); });
       li.appendChild(btn);
     }
     container.appendChild(li);
   });
 }
 
-function selectFile(path) {
+async function selectFile(path) {
+  if (dirty && !confirm("File chưa lưu. Mở file khác và bỏ thay đổi?")) return;
   activePath = path;
   dirty = false;
   document.getElementById("fileTitle").textContent = path;
   document.getElementById("saveBtn").disabled = true;
-  document.getElementById("codeArea").value =
-    (DATA.fileContents && DATA.fileContents[path]) || "// (empty file)\n";
-
-  document.querySelectorAll(".tree-file-btn").forEach((b) => {
-    b.classList.toggle("active", b.dataset.path === path);
-  });
+  const area = document.getElementById("codeArea");
+  area.value = "Loading…";
+  try {
+    const result = await api(`/api/workspace/file?path=${encodeURIComponent(path)}`);
+    area.value = result.content;
+  } catch {
+    area.value = (DATA.fileContents && DATA.fileContents[path]) || "// File not available\n";
+  }
+  document.querySelectorAll(".tree-file-btn").forEach((b) => b.classList.toggle("active", b.dataset.path === path));
 }
-
-// ---------------------------------------------------------------------------
-// Chat panel
-// ---------------------------------------------------------------------------
 
 function setupChatPanel() {
   const messagesEl = document.getElementById("chatMessages");
   const input = document.getElementById("chatInput");
   const sendBtn = document.getElementById("sendBtn");
-
-  DATA.chat.initialMessages.forEach((m) => appendMessage(messagesEl, m.role, m.text));
-
-  input.addEventListener("input", () => {
-    sendBtn.disabled = input.value.trim().length === 0;
-  });
-
-  input.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      send();
-    }
-  });
-
+  (DATA.chat?.initialMessages || []).forEach((m) => appendMessage(messagesEl, m.role, m.text));
+  input.addEventListener("input", () => { sendBtn.disabled = input.value.trim().length === 0; });
+  input.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } });
   sendBtn.addEventListener("click", send);
 
   async function send() {
-    const text = input.value.trim();
-    if (!text) return;
-
-    appendMessage(messagesEl, "user", text);
-    input.value = "";
-    sendBtn.disabled = true;
-
-    const typing = document.createElement("div");
-    typing.className = "typing";
-    typing.innerHTML = `${ICON_BOT}<span>Velclaw đang trả lời…</span>`;
-    messagesEl.appendChild(typing);
-    messagesEl.scrollTop = messagesEl.scrollHeight;
-
-    // TODO: replace with a real call to your agent runtime, e.g.
-    // const res = await fetch("/api/agent/chat", { method: "POST", body: JSON.stringify({ message: text }) });
-    // const data = await res.json();
-    await new Promise((r) => setTimeout(r, 600));
-
-    typing.remove();
-    appendMessage(
-      messagesEl,
-      "agent",
-      `(demo) Đã nhận: "${text}". Nối API thật vào đây để lấy phản hồi từ agent.`
-    );
+    const text = input.value.trim(); if (!text) return;
+    appendMessage(messagesEl, "user", text); input.value = ""; sendBtn.disabled = true;
+    const typing = document.createElement("div"); typing.className = "typing"; typing.innerHTML = `${ICON_BOT}<span>Velclaw đang xử lý…</span>`; messagesEl.appendChild(typing); messagesEl.scrollTop = messagesEl.scrollHeight;
+    try {
+      const result = await api("/api/agent/chat", { method:"POST", body:JSON.stringify({ message:text, path:activePath, model:document.getElementById("modelSelect")?.value || undefined }) });
+      typing.remove();
+      const payload = result.data || result;
+      const answer = payload.response || payload.message || payload.output || payload.content || (result.configured === false ? "Agent chưa được cấu hình. Đặt VELCLAW_AGENT_URL cho server." : JSON.stringify(payload));
+      appendMessage(messagesEl, "agent", answer);
+    } catch (e) { typing.remove(); appendMessage(messagesEl, "agent", `Lỗi agent: ${e.message}`); }
+    finally { sendBtn.disabled = input.value.trim().length === 0; }
   }
 }
 
 function appendMessage(container, role, text) {
-  const row = document.createElement("div");
-  row.className = `msg-row ${role}`;
-
-  const avatar = document.createElement("div");
-  avatar.className = `avatar ${role}`;
-  avatar.innerHTML = role === "user" ? ICON_USER : ICON_BOT;
-
-  const bubble = document.createElement("div");
-  bubble.className = `bubble ${role}`;
-  bubble.textContent = text;
-
-  row.appendChild(avatar);
-  row.appendChild(bubble);
-  container.appendChild(row);
-  container.scrollTop = container.scrollHeight;
+  const row = document.createElement("div"); row.className = `msg-row ${role}`;
+  const avatar = document.createElement("div"); avatar.className = `avatar ${role}`; avatar.innerHTML = role === "user" ? ICON_USER : ICON_BOT;
+  const bubble = document.createElement("div"); bubble.className = `bubble ${role}`; bubble.textContent = text;
+  row.appendChild(avatar); row.appendChild(bubble); container.appendChild(row); container.scrollTop = container.scrollHeight;
 }
-
-// ---------------------------------------------------------------------------
-// Dashboard panel
-// ---------------------------------------------------------------------------
 
 function setupDashboardPanel() {
-  const d = DATA.dashboard;
-
-  document.getElementById("deployStatus").textContent = d.deployStatus.label;
-
-  const toolsList = document.getElementById("toolsList");
-  d.tools.forEach((t) => toolsList.appendChild(statusRow(t.name, t.status)));
-
-  const connList = document.getElementById("connectionsList");
-  d.connections.forEach((c) => connList.appendChild(statusRow(c.name, c.status)));
-
-  const modelSelect = document.getElementById("modelSelect");
-  d.models.forEach((m) => {
-    const opt = document.createElement("option");
-    opt.value = m;
-    opt.textContent = m;
-    modelSelect.appendChild(opt);
-  });
-
-  document.getElementById("editInstructionsBtn").addEventListener("click", () => {
-    // Jump to Files tab and open the instructions file directly.
-    document.querySelector('.nav-btn[data-tab="files"]').click();
-    selectFile("agent/instructions.md");
-  });
-
-  const logsList = document.getElementById("logsList");
-  d.logs.forEach((l) => {
-    const row = document.createElement("div");
-    row.className = `log-row ${l.level === "error" ? "error" : ""}`;
-    row.innerHTML = `<span class="time">${l.time}</span><span class="text">${l.text}</span>`;
-    logsList.appendChild(row);
-  });
+  const d = DATA.dashboard || {};
+  document.getElementById("deployStatus").textContent = d.deployStatus?.label || "Checking…";
+  const toolsList = document.getElementById("toolsList"); (d.tools || []).forEach((t) => toolsList.appendChild(statusRow(t.name, t.status)));
+  const connList = document.getElementById("connectionsList"); (d.connections || []).forEach((c) => connList.appendChild(statusRow(c.name, c.status)));
+  const modelSelect = document.getElementById("modelSelect"); (d.models || []).forEach((m) => { const opt=document.createElement("option"); opt.value=m; opt.textContent=m; modelSelect.appendChild(opt); });
+  document.getElementById("editInstructionsBtn").addEventListener("click", () => { document.querySelector('.nav-btn[data-tab="files"]').click(); selectFile("agent/instructions.md"); });
+  const logsList = document.getElementById("logsList"); (d.logs || []).forEach((l) => appendDashboardLog(logsList, l.text, l.level === "error", l.time));
 }
 
-function statusRow(name, status) {
-  const active = status === "active";
-  const row = document.createElement("div");
-  row.className = `status-row ${active ? "active" : ""}`;
-  row.innerHTML = `<span class="name">${name}</span>${active ? ICON_CHECK : ICON_X}`;
-  return row;
+async function refreshWorkspaceStatus() {
+  try {
+    const s = await api("/api/workspace/status");
+    const label = document.getElementById("deployStatus");
+    if (label) label.textContent = s.agent?.configured ? "Velclaw Agent connected" : "Workspace online · Agent not configured";
+    const status = document.querySelector(".chat-header .status");
+    if (status) { status.textContent = s.agent?.configured ? "● connected" : "● offline"; status.style.color = s.agent?.configured ? "var(--teal)" : "var(--text-dim)"; }
+  } catch {
+    const label = document.getElementById("deployStatus"); if (label) label.textContent = "Backend offline";
+  }
 }
+
+function appendDashboardLog(container, text, error=false, time=new Date().toLocaleTimeString()) {
+  const row=document.createElement("div"); row.className=`log-row ${error ? "error" : ""}`; const t=document.createElement("span"); t.className="time"; t.textContent=time; const x=document.createElement("span"); x.className="text"; x.textContent=text; row.append(t,x); container.appendChild(row);
+}
+function appendLog(text,error=false) { const el=document.getElementById("logsList"); if (el) appendDashboardLog(el,text,error); }
+function statusRow(name,status) { const active=status === "active"; const row=document.createElement("div"); row.className=`status-row ${active ? "active" : ""}`; row.innerHTML=`<span class="name">${escapeHtml(name)}</span>${active ? ICON_CHECK : ICON_X}`; return row; }
+function escapeHtml(value) { return String(value).replace(/[&<>'"]/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;","\"":"&quot;"}[c])); }

@@ -1,84 +1,43 @@
-// ---------------------------------------------------------------------------
-// Velclaw Workspace — standalone client
-// ---------------------------------------------------------------------------
-
-let DATA = null;
-let activePath = null;
-let dirty = false;
-let statusTimer = null;
-
-const ICON_DIR = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h5l2 2h9v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"/></svg>`;
-const ICON_DIR_OPEN = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h5l2 2h9v3H2V6a2 2 0 0 1 2-2Z"/><path d="M2 9h20l-2 11H4Z"/></svg>`;
-const ICON_FILE = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>`;
-const ICON_CHEVRON_R = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>`;
-const ICON_CHEVRON_D = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>`;
-const ICON_USER = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`;
-const ICON_BOT = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/><line x1="8" y1="16" x2="8" y2="16"/><line x1="16" y1="16" x2="16" y2="16"/></svg>`;
-const ICON_CHECK = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>`;
-const ICON_X = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>`;
-
+let DATA=null,activePath=null,dirty=false,wrap=false,openTabs=[];
+const $=id=>document.getElementById(id);
+const ICON={file:'<svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>',dir:'<svg viewBox="0 0 24 24"><path d="M3 6a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg>',bot:'◌'};
+async function api(path,options={}){const r=await fetch(path,{...options,headers:{'content-type':'application/json',...(options.headers||{})}});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||`HTTP ${r.status}`);return d}
+async function init(){
+ try{DATA=await api('data.json')}catch{DATA={fileTree:[],fileContents:{},chat:{initialMessages:[]},dashboard:{models:[]}}}
+ setupMenu();setupTabs();setupTree();setupEditor();setupChat();setupCommands();setupDashboard();await refreshTree();await refreshStatus();
+}
+function setupMenu(){
+ const open=()=>{$('menuOverlay').classList.add('open');$('menuOverlay').setAttribute('aria-hidden','false')};const close=()=>{$('menuOverlay').classList.remove('open');$('menuOverlay').setAttribute('aria-hidden','true')};
+ $('openMenuBtn').onclick=open;$('closeMenuBtn').onclick=close;$('menuBackdrop').onclick=close;
+ document.querySelectorAll('.menu-item[data-tab]').forEach(b=>b.onclick=()=>{switchTab(b.dataset.tab);close()});
+ $('chatQuickBtn').onclick=()=>switchTab('chat');$('reloadMenuBtn').onclick=async()=>{close();await refreshTree();await refreshStatus()};
+}
+function setupTabs(){}
+function switchTab(tab){document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));const panel=$(`panel-${tab}`);if(panel)panel.classList.add('active');document.querySelectorAll('.menu-item[data-tab]').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));}
+function setupTree(){
+ const open=()=>{$('treeOverlay').classList.add('open');$('treeOverlay').setAttribute('aria-hidden','false')};const close=()=>{$('treeOverlay').classList.remove('open');$('treeOverlay').setAttribute('aria-hidden','true')};
+ $('openTreeBtn').onclick=open;$('closeTreeBtn').onclick=close;$('treeBackdrop').onclick=close;$('refreshTreeBtn').onclick=refreshTree;$('fileFilter').oninput=()=>renderTree(filterTree(DATA?.fileTree||[],$('fileFilter').value.toLowerCase()),$('fileTree'),0);
+}
+function filterTree(nodes,q){if(!q)return nodes;return nodes.flatMap(n=>{if(n.type==='file')return n.name.toLowerCase().includes(q)?[n]:[];const children=filterTree(n.children||[],q);return children.length||n.name.toLowerCase().includes(q)?[{...n,children}]:[]})}
+async function refreshTree(){try{const r=await api('/api/workspace/tree');DATA.fileTree=r.tree||[];renderTree(DATA.fileTree,$('fileTree'),0)}catch{renderTree(DATA?.fileTree||[],$('fileTree'),0)}}
+function renderTree(nodes,container,depth){container.innerHTML='';nodes.forEach(node=>{const li=document.createElement('li');if(node.type==='dir'){const b=document.createElement('button');b.style.paddingLeft=`${7+depth*14}px`;b.innerHTML=`${ICON.dir}<span class="name">${esc(node.name)}</span><span style="margin-left:auto">›</span>`;let child; b.onclick=()=>{if(child)child.hidden=!child.hidden};li.appendChild(b);child=document.createElement('ul');renderTree(node.children||[],child,depth+1);li.appendChild(child)}else{const b=document.createElement('button');b.className='tree-file';b.dataset.path=node.path;b.style.paddingLeft=`${7+depth*14}px`;b.innerHTML=`${ICON.file}<span class="name">${esc(node.name)}</span>`;b.onclick=()=>{selectFile(node.path);$('treeOverlay').classList.remove('open')};li.appendChild(b)}container.appendChild(li)})}
+function setupEditor(){
+ $('saveBtn').onclick=saveFile;$('wrapBtn').onclick=()=>{wrap=!wrap;$('editorWrap').classList.toggle('wrap',wrap)};$('searchBtn').onclick=()=>{const q=prompt('Tìm trong file đang mở');if(q){const i=$('codeArea').value.indexOf(q);if(i>=0){$('codeArea').focus();$('codeArea').setSelectionRange(i,i+q.length)}}};
+ $('codeArea').addEventListener('input',()=>{dirty=true;$('saveBtn').disabled=false;updateEditorMeta();renderGutter()});$('codeArea').addEventListener('scroll',()=>{$('gutter').scrollTop=$('codeArea').scrollTop});$('codeArea').addEventListener('click',updateCursor);$('codeArea').addEventListener('keyup',updateCursor);$('codeArea').addEventListener('keydown',e=>{if(e.key==='Tab'){e.preventDefault();const s=e.target.selectionStart;e.target.value=e.target.value.slice(0,s)+'  '+e.target.value.slice(e.target.selectionEnd);e.target.selectionStart=e.target.selectionEnd=s+2;dirty=true;$('saveBtn').disabled=false;renderGutter()}})}
+async function selectFile(path){if(dirty&&!confirm('File chưa lưu. Bỏ thay đổi?'))return;activePath=path;dirty=false;$('saveBtn').disabled=true;$('editorOverlay').classList.add('show');$('breadcrumbFile').textContent=path;$('codeArea').value='';try{const r=await api(`/api/workspace/file?path=${encodeURIComponent(path)}`);$('codeArea').value=r.content}catch(e){$('codeArea').value=DATA?.fileContents?.[path]||`// Không đọc được ${path}\n// ${e.message}`}$('editorOverlay').classList.remove('show');if(!openTabs.includes(path))openTabs.push(path);renderTabs();document.querySelectorAll('.tree-file').forEach(b=>b.classList.toggle('active',b.dataset.path===path));updateEditorMeta();renderGutter()}
+function renderTabs(){const el=$('editorTabs');el.innerHTML='';openTabs.forEach(p=>{const t=document.createElement('button');t.className='tab'+(p===activePath?' active':'');t.innerHTML=`${esc(p.split('/').pop())}${p===activePath&&dirty?'<span>•</span>':''}<span class="tab-close">×</span>`;t.onclick=e=>{if(e.target.classList.contains('tab-close')){openTabs=openTabs.filter(x=>x!==p);if(activePath===p&&openTabs.length)selectFile(openTabs[openTabs.length-1]);renderTabs()}else selectFile(p)};el.appendChild(t)})}
+async function saveFile(){if(!activePath)return;const b=$('saveBtn');b.disabled=true;b.textContent='Saving…';try{await api('/api/workspace/file',{method:'POST',body:JSON.stringify({path:activePath,content:$('codeArea').value})});dirty=false;$('editorStatus').textContent='Saved';renderTabs()}catch(e){$('editorStatus').textContent=`Save failed: ${e.message}`;dirty=true;b.disabled=false}b.textContent='Lưu';if(!dirty)b.disabled=true}
+function renderGutter(){const n=Math.max(1,$('codeArea').value.split('\n').length);$('gutter').innerHTML=Array.from({length:n},(_,i)=>`<div>${i+1}</div>`).join('')}
+function updateCursor(){const ta=$('codeArea'),before=ta.value.slice(0,ta.selectionStart),line=before.split('\n').length,col=before.length-(before.lastIndexOf('\n')+1)+1;$('cursorStatus').textContent=`Ln ${line}, Col ${col}`}
+function updateEditorMeta(){const p=activePath||'',ext=p.split('.').pop().toLowerCase(),map={js:'JavaScript',ts:'TypeScript',tsx:'TypeScript React',jsx:'JavaScript React',json:'JSON',html:'HTML',css:'CSS',md:'Markdown',py:'Python',yml:'YAML',yaml:'YAML',sh:'Shell'};$('languageStatus').textContent=map[ext]||'Plain Text';$('editorStatus').textContent=dirty?'Modified':'Ready';updateCursor();renderTabs()}
+function setupChat(){
+ const input=$('chatInput');$('sendBtn').onclick=send;input.oninput=()=>{$('sendBtn').disabled=!input.value.trim()};input.onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}};$('clearChatBtn').onclick=()=>{$('chatMessages').innerHTML=''};(DATA?.chat?.initialMessages||[]).forEach(m=>appendMessage(m.role,m.text))
+}
+async function send(){const input=$('chatInput'),text=input.value.trim();if(!text)return;appendMessage('user',text);input.value='';$('sendBtn').disabled=true;appendMessage('agent','Velclaw đang xử lý…','typing');try{const r=await api('/api/agent/chat',{method:'POST',body:JSON.stringify({message:text,path:activePath,model:DATA?.dashboard?.models?.[0]})});document.querySelectorAll('.typing').forEach(e=>e.remove());const p=r.data||r,a=p.assistant;const answer=typeof a==='string'?a:a?.text||a?.content||p.response||p.message||p.output||(r.configured===false?'Agent chưa được cấu hình.':JSON.stringify(p,null,2));appendMessage('agent',answer)}catch(e){document.querySelectorAll('.typing').forEach(x=>x.remove());appendMessage('agent',`Lỗi agent: ${e.message}`)} }
+function appendMessage(role,text,cls=''){const row=document.createElement('div');row.className=`msg-row ${role} ${cls}`;const av=document.createElement('div');av.className='avatar';av.textContent=role==='user'?'U':ICON.bot;const b=document.createElement('div');b.className=`bubble ${role}`;b.textContent=text;row.append(av,b);$('chatMessages').appendChild(row);$('chatMessages').scrollTop=$('chatMessages').scrollHeight}
+function setupDashboard(){$('refreshBtn').onclick=refreshStatus}
+async function refreshStatus(){try{const s=await api('/api/workspace/status'),ok=!!s.agent?.configured;$('deployStatus').textContent=ok?'Agent connected':'Workspace online · Agent not configured';$('agentStatus').textContent=ok?'● connected':'● offline';$('agentStatus').style.color=ok?'var(--teal)':'var(--muted)';$('menuBackendStatus').textContent=ok?'Backend connected':'Backend online · agent not configured';$('dashboardContent').innerHTML=`<div class="dash-card"><div class="dash-title">Runtime</div><div class="dash-row"><span>Workspace</span><b>${esc(s.workspace||'local')}</b></div><div class="dash-row"><span>Node</span><b>${esc(s.server?.node||'—')}</b></div><div class="dash-row"><span>Agent</span><b class="${ok?'ok':'muted'}">${ok?'connected':'not configured'}</b></div></div><div class="dash-card"><div class="dash-title">Endpoints</div><div class="dash-row"><span>Workspace API</span><b class="ok">ready</b></div><div class="dash-row"><span>Agent API</span><b class="${ok?'ok':'muted'}">${ok?'ready':'waiting for URL'}</b></div></div>`}catch(e){$('deployStatus').textContent='Backend offline';$('agentStatus').textContent='● offline';$('menuBackendStatus').textContent='Backend offline'}}
+function setupCommands(){const open=()=>{$('commandOverlay').classList.add('open');$('commandInput').value='';renderCommands('')};const close=()=>$('commandOverlay').classList.remove('open');$('commandBtn').onclick=open;$('commandMenuBtn').onclick=()=>{document.querySelector('.side-menu')&&$('menuOverlay').classList.remove('open');open()};$('commandBackdrop').onclick=close;$('commandInput').oninput=e=>renderCommands(e.target.value.toLowerCase());document.addEventListener('keydown',e=>{if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k'){e.preventDefault();open()}if(e.key==='Escape'){close();$('menuOverlay').classList.remove('open');$('treeOverlay').classList.remove('open')}})}
+function renderCommands(q){const items=[['Open Codebase','files'],['Open Agent','chat'],['Open Source Control','git'],['Open Dashboard','dashboard'],['Open file tree','tree'],['Refresh workspace','refresh']].filter(x=>x[0].toLowerCase().includes(q));$('commandList').innerHTML='';items.forEach(([label,act])=>{const b=document.createElement('div');b.className='command-row';b.innerHTML=`<div><b>${label}</b><small>${act}</small></div>`;b.onclick=()=>{if(act==='tree')$('treeOverlay').classList.add('open');else if(act==='refresh'){refreshTree();refreshStatus()}else switchTab(act);$('commandOverlay').classList.remove('open')};$('commandList').appendChild(b)})}
+function esc(v){return String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 init();
-
-async function api(path, options = {}) {
-  const res = await fetch(path, { ...options, headers: { "content-type": "application/json", ...(options.headers || {}) } });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-  return data;
-}
-
-async function init() {
-  try { DATA = await api("data.json"); }
-  catch { DATA = { fileTree: [], fileContents: {}, chat: { initialMessages: [] }, dashboard: { deployStatus: { label: "Unknown" }, tools: [], connections: [], models: [], logs: [] } }; }
-  setupTabs(); setupFilesPanel(); setupChatPanel(); setupDashboardPanel(); refreshWorkspaceStatus();
-  statusTimer = setInterval(refreshWorkspaceStatus, 30000);
-}
-
-function setupTabs() {
-  const navBtns = document.querySelectorAll(".nav-btn");
-  navBtns.forEach((btn) => btn.addEventListener("click", () => {
-    navBtns.forEach((b) => b.classList.remove("active")); btn.classList.add("active");
-    document.querySelectorAll(".panel").forEach((p) => p.classList.remove("active"));
-    document.getElementById(`panel-${btn.dataset.tab}`).classList.add("active");
-  }));
-}
-
-function setupFilesPanel() {
-  const drawer=document.getElementById("drawerOverlay"), codeArea=document.getElementById("codeArea"), saveBtn=document.getElementById("saveBtn"), fileTitle=document.getElementById("fileTitle");
-  document.getElementById("openDrawerBtn").addEventListener("click",()=>drawer.classList.add("open"));
-  document.getElementById("closeDrawerBtn").addEventListener("click",()=>drawer.classList.remove("open"));
-  document.getElementById("drawerBackdrop").addEventListener("click",()=>drawer.classList.remove("open"));
-  codeArea.addEventListener("input",()=>{dirty=true;saveBtn.disabled=false;fileTitle.innerHTML=`${escapeHtml(activePath||"")} <span class="dirty-dot">•</span>`;});
-  saveBtn.addEventListener("click",async()=>{
-    if(!activePath)return;saveBtn.disabled=true;
-    try{await api("/api/workspace/file",{method:"POST",body:JSON.stringify({path:activePath,content:codeArea.value})});dirty=false;fileTitle.textContent=activePath;appendLog(`Saved ${activePath}`);}
-    catch(e){dirty=true;saveBtn.disabled=false;appendLog(`Save failed: ${e.message}`,true);}
-  });
-  renderTree(DATA.fileTree||[],document.getElementById("fileTree"),0);
-  const first=findFirstFile(DATA.fileTree||[]);if(first)selectFile(first);
-}
-function findFirstFile(nodes){for(const n of nodes){if(n.type==="file")return n.path;if(n.children){const f=findFirstFile(n.children);if(f)return f;}}return null;}
-function renderTree(nodes,container,depth){nodes.forEach((node)=>{const li=document.createElement("li");if(node.type==="dir"){const btn=document.createElement("button");btn.className="tree-dir-btn";btn.style.paddingLeft=`${8+depth*14}px`;let open=depth===0;const childUl=document.createElement("ul");renderTree(node.children||[],childUl,depth+1);childUl.style.display=open?"block":"none";const paint=()=>{btn.innerHTML=`${open?ICON_CHEVRON_D:ICON_CHEVRON_R}${open?ICON_DIR_OPEN:ICON_DIR}<span>${escapeHtml(node.name)}</span>`;};paint();btn.addEventListener("click",()=>{open=!open;childUl.style.display=open?"block":"none";paint();});li.appendChild(btn);li.appendChild(childUl);}else{const btn=document.createElement("button");btn.className="tree-file-btn";btn.dataset.path=node.path;btn.style.paddingLeft=`${8+depth*14}px`;btn.innerHTML=`${ICON_FILE}<span>${escapeHtml(node.name)}</span>`;btn.addEventListener("click",()=>{selectFile(node.path);document.getElementById("drawerOverlay").classList.remove("open");});li.appendChild(btn);}container.appendChild(li);});}
-async function selectFile(path){
-  if(dirty&&!confirm("File chưa lưu. Mở file khác và bỏ thay đổi?"))return;activePath=path;dirty=false;document.getElementById("fileTitle").textContent=path;document.getElementById("saveBtn").disabled=true;const area=document.getElementById("codeArea");area.value="Loading…";
-  try{const result=await api(`/api/workspace/file?path=${encodeURIComponent(path)}`);area.value=result.content;}catch{area.value=(DATA.fileContents&&DATA.fileContents[path])||"// File not available\n";}
-  document.querySelectorAll(".tree-file-btn").forEach((b)=>b.classList.toggle("active",b.dataset.path===path));
-}
-
-function setupChatPanel(){
-  const messagesEl=document.getElementById("chatMessages"),input=document.getElementById("chatInput"),sendBtn=document.getElementById("sendBtn");
-  (DATA.chat?.initialMessages||[]).forEach((m)=>appendMessage(messagesEl,m.role,m.text));
-  input.addEventListener("input",()=>{sendBtn.disabled=input.value.trim().length===0;});
-  input.addEventListener("keydown",(e)=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send();}});sendBtn.addEventListener("click",send);
-  async function send(){const text=input.value.trim();if(!text)return;appendMessage(messagesEl,"user",text);input.value="";sendBtn.disabled=true;const typing=document.createElement("div");typing.className="typing";typing.innerHTML=`${ICON_BOT}<span>Velclaw đang xử lý…</span>`;messagesEl.appendChild(typing);messagesEl.scrollTop=messagesEl.scrollHeight;
-    try{const result=await api("/api/agent/chat",{method:"POST",body:JSON.stringify({message:text,path:activePath,model:document.getElementById("modelSelect")?.value||undefined})});typing.remove();const payload=result.data||result;const assistant=payload.assistant||{};const answer=assistant.text||assistant.content||payload.response||payload.message||payload.output||payload.content||(result.configured===false?"Agent chưa được cấu hình. Đặt VELCLAW_AGENT_URL cho server.":JSON.stringify(payload));appendMessage(messagesEl,"agent",answer);}
-    catch(e){typing.remove();appendMessage(messagesEl,"agent",`Lỗi agent: ${e.message}`);}finally{sendBtn.disabled=input.value.trim().length===0;}
-  }
-}
-function appendMessage(container,role,text){const row=document.createElement("div");row.className=`msg-row ${role}`;const avatar=document.createElement("div");avatar.className=`avatar ${role}`;avatar.innerHTML=role==="user"?ICON_USER:ICON_BOT;const bubble=document.createElement("div");bubble.className=`bubble ${role}`;bubble.textContent=text;row.appendChild(avatar);row.appendChild(bubble);container.appendChild(row);container.scrollTop=container.scrollHeight;}
-
-function setupDashboardPanel(){const d=DATA.dashboard||{};document.getElementById("deployStatus").textContent=d.deployStatus?.label||"Checking…";const toolsList=document.getElementById("toolsList");(d.tools||[]).forEach((t)=>toolsList.appendChild(statusRow(t.name,t.status)));const connList=document.getElementById("connectionsList");(d.connections||[]).forEach((c)=>connList.appendChild(statusRow(c.name,c.status)));const modelSelect=document.getElementById("modelSelect");(d.models||[]).forEach((m)=>{const opt=document.createElement("option");opt.value=m;opt.textContent=m;modelSelect.appendChild(opt);});document.getElementById("editInstructionsBtn").addEventListener("click",()=>{document.querySelector('.nav-btn[data-tab="files"]').click();selectFile("agent/instructions.md");});const logsList=document.getElementById("logsList");(d.logs||[]).forEach((l)=>appendDashboardLog(logsList,l.text,l.level==="error",l.time));}
-async function refreshWorkspaceStatus(){try{const s=await api("/api/workspace/status");const label=document.getElementById("deployStatus");if(label)label.textContent=s.agent?.configured?"Velclaw Agent connected":"Workspace online · Agent not configured";const status=document.querySelector(".chat-header .status");if(status){status.textContent=s.agent?.configured?"● connected":"● offline";status.style.color=s.agent?.configured?"var(--teal)":"var(--text-dim)";}}catch{const label=document.getElementById("deployStatus");if(label)label.textContent="Backend offline";}}
-function appendDashboardLog(container,text,error=false,time=new Date().toLocaleTimeString()){const row=document.createElement("div");row.className=`log-row ${error?"error":""}`;const t=document.createElement("span");t.className="time";t.textContent=time;const x=document.createElement("span");x.className="text";x.textContent=text;row.append(t,x);container.appendChild(row);}
-function appendLog(text,error=false){const el=document.getElementById("logsList");if(el)appendDashboardLog(el,text,error);}
-function statusRow(name,status){const active=status==="active";const row=document.createElement("div");row.className=`status-row ${active?"active":""}`;row.innerHTML=`<span class="name">${escapeHtml(name)}</span>${active?ICON_CHECK:ICON_X}`;return row;}
-function escapeHtml(value){return String(value).replace(/[&<>'"]/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;","\"":"&quot;"}[c]));}

@@ -4,7 +4,7 @@
 
 # Velclaw Workspace
 
-**Standalone mobile-first IDE workspace cho hệ sinh thái Velclaw — files, chat, dashboard và bridge tới agent thật.**
+**Standalone mobile-first IDE/codebase workspace cho hệ sinh thái Velclaw — code editor, agent, source control, dashboard và ecosystem navigation.**
 
 </div>
 
@@ -12,17 +12,31 @@
 
 ## Kiến trúc
 
-`zskbot/eve-pages` là **companion/child project độc lập** của Velclaw. Nó có thể chạy và deploy riêng, nhưng mặc định kết nối tới agent API của `Velclaw/Velclaw`.
+`zskbot/eve-pages` là **companion/child project độc lập** của Velclaw. Nó deploy riêng được nhưng được thiết kế để kết nối với Velclaw Agent Core.
 
 ```text
 VELCLAW ECOSYSTEM
 ├── Velclaw/Velclaw        # CORE / MAIN
-└── zskbot/eve-pages       # STANDALONE WORKSPACE / EVE UI
-                              │
-                              └── /api/agent/chat ──> Velclaw Agent
+├── zskbot/eve-pages       # STANDALONE WORKSPACE / EVE UI
+├── Velclaw Deploy         # BUILD / DEPLOY / RUNTIME
+├── VelclawHub             # PROJECT / ECOSYSTEM HUB
+└── Velclaw Dashboard      # OPERATIONS
+
+      eve-pages
+          │
+          ├── Codebase editor
+          ├── Agent bridge ─────> Velclaw Agent Core
+          ├── GitHub adapter ───> repository contents API
+          └── Source Control ───> commits / branch / PR layer
 ```
 
-Repo này không cần clone hay cài đặt repo chính để khởi động giao diện. Khi muốn đổi runtime, đặt `VELCLAW_AGENT_URL`.
+## UI mới
+
+- Menu 3 gạch là navigation chính; không còn bottom navigation chiếm chiều cao màn hình.
+- Toàn bộ trang ngoài được gom vào **Velclaw ecosystem menu**.
+- Codebase có file drawer, filter, breadcrumb, editor tabs, line numbers, word-wrap, cursor position và language detection.
+- Command palette `Ctrl/Cmd + K` để chuyển nhanh giữa Codebase, Agent, Source Control và Dashboard.
+- Giao diện responsive: mobile-first nhưng mở rộng được trên desktop.
 
 ## Chạy độc lập
 
@@ -34,58 +48,72 @@ npm start
 
 Mở `http://localhost:8080/`.
 
-Hoặc:
+Agent bridge:
 
 ```bash
-PORT=8080 VELCLAW_AGENT_URL=https://velclaw.cfd/api/agent/chat npm start
+VELCLAW_AGENT_URL=https://your-agent-endpoint.example/api/agent/chat npm start
 ```
 
-## API runtime
+## Deployment API
+
+Repo có các Vercel Functions để tránh lỗi `405 Method Not Allowed` khi frontend chạy trên static hosting:
 
 | Endpoint | Method | Chức năng |
 |---|---:|---|
-| `/api/health` | GET | Health check |
-| `/api/workspace/status` | GET | Workspace + agent connection status |
-| `/api/workspace/tree` | GET | Đọc cây file thật |
-| `/api/workspace/file?path=...` | GET | Đọc file trong workspace |
-| `/api/workspace/file` | POST | Ghi file trong workspace |
-| `/api/agent/chat` | POST | Proxy tới Velclaw Agent |
+| `/api/agent/chat` | POST | Proxy server-side tới Velclaw Agent |
+| `/api/workspace/status` | GET | Runtime + Agent + GitHub status |
+| `/api/workspace/tree` | GET | Đọc codebase từ GitHub |
+| `/api/workspace/file?path=...` | GET | Đọc file từ GitHub |
+| `/api/workspace/file?path=...` | POST/PUT | Commit nội dung file về GitHub |
+| `/api/git/status` | GET | Lịch sử commit gần đây |
 
-### Agent request
+### Environment variables cho deployment
 
-```json
-{
-  "message": "Review file này",
-  "path": "app.js",
-  "model": "optional-model"
-}
+```text
+VELCLAW_AGENT_URL=https://<agent-backend>/api/agent/chat
+VELCLAW_AGENT_TOKEN=<optional-server-side-token>
+GITHUB_TOKEN=<fine-grained-token-with-repository-content-access>
+GITHUB_REPO=zskbot/eve-pages
+GITHUB_BRANCH=main
 ```
 
-Bridge giữ token ở server-side qua `VELCLAW_AGENT_TOKEN`, không đưa token vào browser.
+`GITHUB_TOKEN` chỉ nằm ở server environment. Browser không nhận token.
 
-## Tính năng hiện tại
+**Lưu ý:** GitHub adapter là persistence layer cho bản deploy. Nếu chưa cấu hình `GITHUB_TOKEN`, editor vẫn có thể hiển thị code nhưng thao tác Save trên deployment sẽ báo cần cấu hình token.
 
-- **Files:** đọc/ghi filesystem thật, dirty state, path traversal protection.
-- **Chat:** gọi agent Velclaw thật qua server bridge, không còn demo delay.
-- **Dashboard:** hiển thị trạng thái backend/agent và tự refresh.
-- **Workspace tree:** endpoint filesystem thật cho các bước nâng cấp tiếp theo.
-- **Deployment:** có Dockerfile và cấu hình môi trường mẫu.
-- **Zero frontend build:** vanilla HTML/CSS/JS.
+## Source Control roadmap
 
-## Hướng nâng cấp tiếp theo
+Đã có nền tảng cho GitHub-backed editing và commit history. Các lớp tiếp theo được thiết kế theo pipeline:
 
-1. Streaming agent response (SSE/WebSocket).
-2. Git diff / branch / commit / PR từ workspace.
-3. Build → test → review → fix → rerun loop.
-4. Terminal/runtime controls.
-5. Agent tool approvals và audit log.
-6. Multi-project workspace.
-7. Authentication/session thay vì public workspace write.
-8. File search, command palette và editor nâng cao.
+```text
+Agent request
+   ↓
+Plan
+   ↓
+Edit codebase
+   ↓
+Diff
+   ↓
+Build
+   ↓
+Test
+   ↓
+Review
+   ↓
+Fix
+   ↓
+Rerun
+   ↓
+PASS
+   ↓
+Commit / Pull Request
+```
+
+Các module tiếp theo: branch switching, unified diff, staged changes, commit composer, PR creation, CI status, build/test executor và automatic review/fix loop.
 
 ## Bảo mật
 
-Server giới hạn body request, chặn path traversal, bỏ qua `.git` và `node_modules` khi tạo tree, và chỉ giữ agent token ở backend. **Không nên expose server này ra Internet với quyền ghi file mà không thêm authentication/authorization.**
+Server local chặn path traversal, giới hạn request body và không expose agent token cho frontend. Deployment sử dụng GitHub token server-side. **Không cấp token quyền ghi rộng hơn cần thiết và không expose public write API mà không có authentication/authorization.**
 
 ## License
 

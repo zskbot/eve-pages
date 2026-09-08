@@ -1,130 +1,93 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="vi">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0d1117">
 <title>Velclaw · Workspace</title>
-<link rel="stylesheet" href="style.css" />
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
-
-<div class="app">
-
-  <!-- ===== FILES PANEL ===== -->
-  <section class="panel active" id="panel-files">
-    <div class="files-topbar">
-      <button class="icon-btn" id="openDrawerBtn" aria-label="Mở cây thư mục">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg>
-      </button>
-      <span class="file-title" id="fileTitle">Chưa chọn file</span>
-      <button class="save-btn" id="saveBtn" disabled>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-        Lưu
-      </button>
-    </div>
-
-    <textarea id="codeArea" spellcheck="false" placeholder="Chọn một file từ cây thư mục để bắt đầu chỉnh sửa"></textarea>
-
-    <div class="drawer-overlay" id="drawerOverlay">
-      <div class="drawer">
-        <div class="drawer-header">
-          <span>velclaw-eve</span>
-          <button class="icon-btn" id="closeDrawerBtn" aria-label="Đóng">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-          </button>
-        </div>
-        <ul class="tree" id="fileTree"></ul>
-      </div>
-      <button class="drawer-backdrop" id="drawerBackdrop" aria-label="Đóng nền"></button>
-    </div>
-  </section>
-
-  <!-- ===== CHAT PANEL ===== -->
-  <section class="panel" id="panel-chat">
-    <div class="chat-header">
-      <span class="title">Test agent</span>
-      <span class="status">● online</span>
-    </div>
-
-    <div class="chat-messages" id="chatMessages"></div>
-
-    <div class="chat-input-bar">
-      <textarea id="chatInput" rows="1" placeholder="Nhắn cho agent…"></textarea>
-      <button class="send-btn" id="sendBtn" disabled aria-label="Gửi">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
-      </button>
-    </div>
-  </section>
-
-  <!-- ===== DASHBOARD PANEL ===== -->
-  <section class="panel" id="panel-dashboard">
-    <div class="dashboard">
-
-      <div class="status-highlight">
-        <p class="label">Trạng thái deploy</p>
-        <p class="value" id="deployStatus"></p>
-      </div>
-
-      <div class="card">
-        <div class="card-header">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m14.7 6.3-1.4 1.4a2 2 0 0 0 0 2.8l.2.2a2 2 0 0 0 2.8 0l1.4-1.4a4 4 0 1 1-3-3Z"/><path d="m2 22 4.5-4.5"/></svg>
-          <span>Tools</span>
-        </div>
-        <div id="toolsList"></div>
-      </div>
-
-      <div class="card">
-        <div class="card-header">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22c4.4-4 8-7.4 8-11.5A8 8 0 0 0 4 10.5C4 14.6 7.6 18 12 22Z"/></svg>
-          <span>Connections</span>
-        </div>
-        <div id="connectionsList"></div>
-      </div>
-
-      <div class="card">
-        <div class="card-header">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg>
-          <span>Cấu hình</span>
-        </div>
-        <div class="config-row">
-          <span class="config-label">Model</span>
-          <select id="modelSelect"></select>
-        </div>
-        <button class="link-row" id="editInstructionsBtn">
-          Sửa agent/instructions.md
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
-        </button>
-      </div>
-
-      <div class="card">
-        <div class="card-header">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M9 3v4h6V3"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="16" x2="16" y2="16"/></svg>
-          <span>Logs gần đây</span>
-        </div>
-        <div id="logsList"></div>
-      </div>
-
-    </div>
-  </section>
-
-  <!-- ===== BOTTOM NAV ===== -->
-  <nav class="bottom-nav">
-    <button class="nav-btn active" data-tab="files">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h5l2 2h9v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"/></svg>
-      <span class="nav-label">Files</span>
+<div class="app" id="app">
+  <header class="topbar">
+    <button class="icon-btn" id="openMenuBtn" aria-label="Mở menu" title="Menu">
+      <svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
     </button>
-    <button class="nav-btn" data-tab="chat">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-      <span class="nav-label">Chat</span>
-    </button>
-    <button class="nav-btn" data-tab="dashboard">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
-      <span class="nav-label">Dashboard</span>
-    </button>
-  </nav>
+    <div class="brand"><span class="brand-mark">V</span><span>Velclaw</span><span class="brand-muted">/</span><span id="workspaceName">eve-pages</span></div>
+    <div class="top-actions">
+      <button class="icon-btn" id="commandBtn" aria-label="Command palette" title="Command palette"><span class="kbd">⌘K</span></button>
+      <button class="icon-btn" id="chatQuickBtn" aria-label="Agent" title="Agent"><svg viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-8 8H8l-5 2 1.8-4A8 8 0 1 1 21 12Z"/><circle cx="9" cy="12" r="1"/><circle cx="13" cy="12" r="1"/><circle cx="17" cy="12" r="1"/></svg></button>
+    </div>
+  </header>
 
+  <main class="main">
+    <section class="panel active" id="panel-files">
+      <div class="editor-head">
+        <button class="project-btn" id="openTreeBtn"><span class="folder-dot"></span><span id="projectLabel">Workspace</span><svg viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg></button>
+        <div class="editor-actions">
+          <button class="tool-btn" id="searchBtn" title="Tìm trong file"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg></button>
+          <button class="tool-btn" id="wrapBtn" title="Word wrap"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 10h16M4 14h10a3 3 0 1 0 0-6M4 18h16"/></svg></button>
+          <button class="save-btn" id="saveBtn" disabled>Lưu</button>
+        </div>
+      </div>
+
+      <div class="breadcrumb" id="breadcrumb"><span>workspace</span><span>/</span><span id="breadcrumbFile">Chưa chọn file</span></div>
+      <div class="tabs" id="editorTabs"></div>
+
+      <div class="editor-wrap" id="editorWrap">
+        <div class="gutter" id="gutter" aria-hidden="true"></div>
+        <textarea id="codeArea" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" placeholder="Chọn file trong menu để bắt đầu chỉnh sửa"></textarea>
+        <div class="editor-overlay" id="editorOverlay">Loading…</div>
+      </div>
+      <div class="statusbar"><span id="editorStatus">Ready</span><span id="cursorStatus">Ln 1, Col 1</span><span id="languageStatus">Plain Text</span><span id="encodingStatus">UTF-8</span></div>
+    </section>
+
+    <section class="panel" id="panel-chat">
+      <div class="section-head"><div><strong>Velclaw Agent</strong><span class="substatus" id="agentStatus">● checking</span></div><button class="tool-btn" id="clearChatBtn">Clear</button></div>
+      <div class="chat-messages" id="chatMessages"></div>
+      <div class="chat-input-bar"><textarea id="chatInput" rows="1" placeholder="Ra lệnh cho agent… Ví dụ: review file đang mở"></textarea><button class="send-btn" id="sendBtn" disabled aria-label="Gửi"><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button></div>
+    </section>
+
+    <section class="panel" id="panel-dashboard">
+      <div class="section-head"><div><strong>Project Dashboard</strong><span class="substatus" id="deployStatus">Checking…</span></div><button class="tool-btn" id="refreshBtn">Refresh</button></div>
+      <div class="dashboard" id="dashboardContent"></div>
+    </section>
+
+    <section class="panel" id="panel-git">
+      <div class="section-head"><div><strong>Source Control</strong><span class="substatus">GitHub workflow</span></div></div>
+      <div class="dashboard" id="gitContent"></div>
+    </section>
+  </main>
+
+  <aside class="menu-overlay" id="menuOverlay" aria-hidden="true">
+    <button class="menu-backdrop" id="menuBackdrop" aria-label="Đóng menu"></button>
+    <nav class="side-menu">
+      <div class="menu-head"><div class="brand"><span class="brand-mark">V</span><span>Velclaw</span></div><button class="icon-btn" id="closeMenuBtn" aria-label="Đóng"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+      <div class="menu-scroll">
+        <div class="menu-label">Workspace</div>
+        <button class="menu-item active" data-tab="files"><span class="menu-icon">⌘</span><span><b>Codebase</b><small>Files · editor · search</small></span></button>
+        <button class="menu-item" data-tab="chat"><span class="menu-icon">◌</span><span><b>Agent</b><small>Chat · review · commands</small></span></button>
+        <button class="menu-item" data-tab="git"><span class="menu-icon">⑂</span><span><b>Source Control</b><small>Changes · commit · PR</small></span></button>
+        <button class="menu-item" data-tab="dashboard"><span class="menu-icon">▦</span><span><b>Dashboard</b><small>Runtime · tools · logs</small></span></button>
+        <div class="menu-label">Velclaw ecosystem</div>
+        <a class="menu-item external" href="https://velclaw.cfd" target="_blank" rel="noopener"><span class="menu-icon">V</span><span><b>Velclaw</b><small>Core workspace</small></span><span>↗</span></a>
+        <a class="menu-item external" href="https://deploy.velclaw.cfd" target="_blank" rel="noopener"><span class="menu-icon">⇧</span><span><b>Velclaw Deploy</b><small>Build · deploy · runtime</small></span><span>↗</span></a>
+        <a class="menu-item external" href="https://hub.velclaw.cfd" target="_blank" rel="noopener"><span class="menu-icon">◇</span><span><b>VelclawHub</b><small>Projects · ecosystem</small></span><span>↗</span></a>
+        <a class="menu-item external" href="https://dashboard.velclaw.cfd" target="_blank" rel="noopener"><span class="menu-icon">▥</span><span><b>Velclaw Dashboard</b><small>Operations</small></span><span>↗</span></a>
+        <a class="menu-item external" href="https://github.com/Velclaw/Velclaw" target="_blank" rel="noopener"><span class="menu-icon">GH</span><span><b>Velclaw Core on GitHub</b><small>Main repository</small></span><span>↗</span></a>
+        <a class="menu-item external" href="https://github.com/zskbot/eve-pages" target="_blank" rel="noopener"><span class="menu-icon">EV</span><span><b>eve-pages</b><small>Standalone companion</small></span><span>↗</span></a>
+        <div class="menu-label">Tools</div>
+        <button class="menu-item" id="commandMenuBtn"><span class="menu-icon">⌘</span><span><b>Command Palette</b><small>Navigate quickly</small></span><kbd>⌘K</kbd></button>
+        <button class="menu-item" id="reloadMenuBtn"><span class="menu-icon">↻</span><span><b>Reload workspace</b><small>Refresh tree and status</small></span></button>
+      </div>
+      <div class="menu-foot"><span class="status-dot"></span><span id="menuBackendStatus">Backend checking…</span></div>
+    </nav>
+  </aside>
+
+  <div class="tree-overlay" id="treeOverlay" aria-hidden="true"><button class="menu-backdrop" id="treeBackdrop"></button><aside class="tree-drawer"><div class="drawer-head"><strong>Codebase</strong><button class="icon-btn" id="closeTreeBtn"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div><div class="tree-tools"><input id="fileFilter" placeholder="Filter files…"><button id="refreshTreeBtn">↻</button></div><ul class="tree" id="fileTree"></ul></aside></div>
+
+  <div class="command-overlay" id="commandOverlay"><button class="menu-backdrop" id="commandBackdrop"></button><div class="command-box"><input id="commandInput" autofocus placeholder="Type a command or search…"><div id="commandList"></div></div></div>
 </div>
-
 <script src="app.js"></script>
 </body>
 </html>

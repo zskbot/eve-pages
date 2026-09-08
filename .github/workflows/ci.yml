@@ -13,7 +13,7 @@ jobs:
         with:
           node-version: 20
       - name: Validate JavaScript
-        run: node --check server.js && node --check app.js
-      - name: Validate API functions
         run: |
-          for f in api/**/*.js api/*.js; do [ -f "$f" ] && node --check "$f"; done
+          node --check server.js
+          node --check app.js
+          find api -name '*.js' -print0 | xargs -0 -n1 node --check

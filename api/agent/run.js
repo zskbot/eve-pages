@@ -2,24 +2,25 @@ export default async function handler(req,res){
  if(req.method==='OPTIONS')return res.status(204).end();
  const agentUrl=(process.env.VELCLAW_AGENT_URL||'').replace(/\/$/,'');
  if(!agentUrl)return res.status(503).json({ok:false,configured:false,error:'VELCLAW_AGENT_URL is not configured'});
- const taskId=new URL(req.url,'http://localhost').searchParams.get('taskId');
- const action=new URL(req.url,'http://localhost').searchParams.get('action');
+ const url=new URL(req.url,'http://localhost');
+ const taskId=url.searchParams.get('taskId');
+ const action=url.searchParams.get('action');
  try{
-  const headers={'content-type':'application/json','accept':'text/event-stream, application/json'};
-  if(process.env.VELCLAW_AGENT_TOKEN)headers.authorization=`Bearer ${process.env.VELCLAW_AGENT_TOKEN}`;
-  if(req.headers.cookie)headers.cookie=req.headers.cookie;
+  const headers={'content-type':'application/json','accept':'application/json'};
+  const bridgeToken=process.env.VELCLAW_AGENT_BRIDGE_TOKEN||process.env.VELCLAW_AGENT_TOKEN;
+  if(bridgeToken)headers.authorization=`Bearer ${bridgeToken}`;
   headers['x-velclaw-agent-mode']='build';
 
   if(req.method==='GET'){
-   const target=taskId?`${agentUrl}/${encodeURIComponent(taskId)}`:`${agentUrl}${new URL(req.url,'http://localhost').search}`;
-   const upstream=await fetch(target,{method:'GET',headers,signal:AbortSignal.timeout(120000)});
+   if(!taskId)return res.status(400).json({ok:false,error:'taskId is required'});
+   const upstream=await fetch(`${agentUrl}?taskId=${encodeURIComponent(taskId)}`,{method:'GET',headers,signal:AbortSignal.timeout(120000)});
    const text=await upstream.text();let data;try{data=JSON.parse(text)}catch{data={response:text}};
    return res.status(upstream.status).json({ok:upstream.ok,configured:true,data:upstream.ok?data:undefined,task:data?.task,error:upstream.ok?undefined:(data?.error||`agent returned ${upstream.status}`)});
   }
 
   if(req.method==='DELETE'){
    if(!taskId)return res.status(400).json({ok:false,error:'taskId is required'});
-   const upstream=await fetch(`${agentUrl}/${encodeURIComponent(taskId)}`,{method:'PATCH',headers,body:JSON.stringify({action:action||'stop'}),signal:AbortSignal.timeout(120000)});
+   const upstream=await fetch(`${agentUrl}?taskId=${encodeURIComponent(taskId)}`,{method:'PATCH',headers,body:JSON.stringify({action:action||'stop'}),signal:AbortSignal.timeout(120000)});
    const text=await upstream.text();let data;try{data=JSON.parse(text)}catch{data={response:text}};
    return res.status(upstream.status).json({ok:upstream.ok,configured:true,data:upstream.ok?data:undefined,task:data?.task,error:upstream.ok?undefined:(data?.error||`agent returned ${upstream.status}`)});
   }
